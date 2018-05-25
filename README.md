@@ -1,3 +1,3 @@
 ## Fermi level pinning code
 
-### Find Fermi level determined by defect states 
+### Find Fermi level pinned by several defect states 
