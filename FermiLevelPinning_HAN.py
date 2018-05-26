@@ -160,31 +160,25 @@ class Make_defective_model:
                     charge_state = float(self.defect_info[i][k+3][0])
                     diff_energy = float(self.defect_info[i][k+3][1])
                     temp.append(diff_energy + charge_state * energy_step[j])
-                temp = np.array(temp)
-                min_energy[i].append(np.min(temp))
+                min_energy[i].append(np.min(np.array(temp)))
 
-        #print min_energy
 
         gs = gridspec.GridSpec(1, 1, width_ratios=[1], height_ratios=[1])
         ax1 = plt.subplot(gs[0,0])
 
-
         for i in range(self.class_num):
             ax1.plot(energy_step, min_energy[i], '-', color=color[i], label=r''+str(name[i])+'')
 
-        ax1.axvline(x=self.vbm)
-        ax1.axvline(x=self.cbm)
+        ax1.axvline(x=self.vbm) ; ax1.axvline(x=self.cbm)
 
         handles, labels = ax1.get_legend_handles_labels()
         leg=ax1.legend(handles[::-1], labels[::-1], frameon=True ,loc='best',numpoints=1,handletextpad=0.5,borderpad=0.05, ncol=1, labelspacing=0.3, handlelength=2, prop={'size':10})
 
         ax1.set_xlabel(r'Energy (eV)')
         ax1.set_ylabel(r'Formation energy (eV)')
-        #ax1.plot([0,len(delta_energy)], [energy_error,energy_error], 'k--', linewidth=1)
         ax1.set_xlim(self.vbm - min_E_from_VBM, self.cbm + max_E_from_CBM)
         #ax1.set_ylim(min_y-0.01,-5.0)
-
-        #plt.savefig("bank_plot.png")
+        plt.savefig("chargetransitionlevel.png")
         plt.show()
 
         return 0
