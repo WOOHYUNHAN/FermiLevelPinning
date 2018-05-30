@@ -195,7 +195,25 @@ class Make_defective_model:
             for j in range(len(temp_info)-3):
                 temp_line = str(temp_info[j+3][0]) + ' ' + str(temp_info[j+3][1])
                 print temp_line
-        print '==============print info==============' 
+        print '==============print info=============='
+
+class calculate_Fermi_level:
+    def __init__(temperature, model):
+        self.temperature = temperature
+        self.defect_info = model.defect_info
+        self.class_num = model.class_num
+        self.E_bulk = model.E_bulk
+        self.vbm = model.vbm 
+        self.cbm = model.cbm
+        self.band_gap = model.band_gap
+        self.bulk_energy = model.bulk_energy
+        self.bulk_totalDOS = model.bulk_totalDOS
+
+    def set_additional_info(self, N_site, degeneracy):
+        
+
+        return 0
+
 
 if __name__ == "__main__": 
     ZnO = Make_defective_model()
