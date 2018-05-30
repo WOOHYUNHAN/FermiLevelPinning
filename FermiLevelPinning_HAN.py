@@ -200,6 +200,7 @@ class Make_defective_model:
 class calculate_Fermi_level:
     def __init__(self, model, temperature):
         self.temperature = temperature
+        self.boltzmann = 8.617343 * 1e-5
         self.defect_info = model.defect_info #### [class, chemical_potential, create_anil_info, [charge_state1, diff_energy1], [charge_state2, diff_energy2]...]
         self.class_num = model.class_num
         self.E_bulk = model.E_bulk
@@ -215,6 +216,7 @@ class calculate_Fermi_level:
             #print num_charge
             for j in range(num_charge):
                 self.detail_info_defect[i].append([])
+        self.ready = False
 
 
     def set_additional_info(self, defect_class_name, charge_state, N_site, spin_degeneracy, struc_degeneracy):
@@ -240,9 +242,9 @@ class calculate_Fermi_level:
         #print self.detail_info_defect
         #[N_site, spin_degeneracy, struc_degenery]
         ######## info ########
-        # N_site = 
-        # spin_degeneracy = 
-        # struc_degeneracy = 
+        # N_site = possible equivalent defect sites per volume 
+        # spin_degeneracy = possible equivalent spin configurations (two-fold degerenated levels, one electron == 2, two electrons == 1)
+        # struc_degeneracy = possible equivalent defect structures (point defct == 1)
         ######################
         self.detail_info_defect[index_class][index_charge].append(N_site)
         self.detail_info_defect[index_class][index_charge].append(spin_degeneracy)
@@ -256,18 +258,48 @@ class calculate_Fermi_level:
                     print "ERROR: some part of detail defect info is empty"
                     print self.defect_info[i][0]
                     return 0
+        print 'Everything is okay; you are ready to calculate Fermi level'
+        self.ready = True
         return 0
 
-    def calculate_defect_concentration(self):
+    def calculate_defect_concentration(self, defect_class, Ef):
+        # step 1: find most dominant charge state
+        if defect_class > self.class_num - 1:
+            print "ERROR: defect class is larger than the number of defect class"
+            return 0
 
+        num_charge = len(self.defect_info[defect_class]) - 3
+        temp_energy = []
+        for i in range(num_charge):
+            charge_state = float(self.defect_info[defect_class][i+3][0])
+            diff_energy = float(self.defect_info[defect_class][i+3][1])
+            temp_energy.append(diff_energy + charge_state * Ef)
 
-        return 0
+        min_index = np.argmin(np.array(temp_energy))
+        #print min_index
+        charge_state = self.defect_info[defect_class][min_index+3][0]
+        formation_energy = float(temp_energy[min_index])
+        #print charge_state, formation_energy
+
+        # step 2: calculate defect concentrations
+
+        N_site, spin_deg, struc_deg = self.detail_info_defect[defect_class][min_index]
+        #print N_site, spin_deg, struc_deg
+
+        temp_part = np.exp(-1 * formation_energy / (self.boltzmann * self.temperature))
+
+        concentration = N_site * spin_deg * struc_deg * temp_part
+
+        return concentration
 
     def calculate_free_carriers(self):
 
         return 0
 
     def main_routine(self, total_steps, delta):
+        self.check_everything_okay()
+        if self.ready:
+            print "ERROR: please check set addition info function"
 
         return 0
 
@@ -294,18 +326,28 @@ if __name__ == "__main__":
     ZnO.set_defect_detail('zinc_vacancy', -280.32489306, 1)
     ZnO.set_defect_detail('zinc_vacancy', -280.79925758, 2)
 
+    ###########################################################################
     #ZnO.draw_thermodynamic_charge_transition_level(0.2, 0.2, 400)
     #print ZnO.class_num
 
     #ZnO.set_defect_detail('oxygen_vacancy', -20.0, -2)
     #ZnO.print_info()
-
+    ############################################################################
     cal_ZnO = calculate_Fermi_level(ZnO, 300)
-    cal_ZnO.set_additional_info('oxygen_vacancy', 0,  1e20, 2, 1)
-    cal_ZnO.set_additional_info('oxygen_vacancy', 2,  1e20, 2, 1)
-    cal_ZnO.set_additional_info('oxygen_vacancy', -2,  1e20, 3, 1)
-    cal_ZnO.set_additional_info('oxygen_vacancy', 1,  1e20, 2, 1)
-    cal_ZnO.set_additional_info('oxygen_vacancy', -1,  1e20, 5, 1)
-    print cal_ZnO.defect_info
-    print cal_ZnO.detail_info_defect
+    cal_ZnO.set_additional_info('oxygen_vacancy',  0, 1e20, 1, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy', -1, 1e20, 2, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy', -2, 1e20, 1, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy',  1, 1e20, 2, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy',  2, 1e20, 1, 1)
+
+    cal_ZnO.set_additional_info('zinc_vacancy',  0, 1e20, 1, 1)
+    cal_ZnO.set_additional_info('zinc_vacancy', -1, 1e20, 2, 1)
+    cal_ZnO.set_additional_info('zinc_vacancy', -2, 1e20, 1, 1)
+    cal_ZnO.set_additional_info('zinc_vacancy',  1, 1e20, 2, 1)
+    cal_ZnO.set_additional_info('zinc_vacancy',  2, 1e20, 1, 1)
+    #print cal_ZnO.defect_info
+    #print cal_ZnO.detail_info_defect
     cal_ZnO.check_everything_okay()
+
+    print cal_ZnO.calculate_defect_concentration(1, 2.2)
+
