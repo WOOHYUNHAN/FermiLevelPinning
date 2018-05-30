@@ -22,7 +22,7 @@ class Make_defective_model:
         self.cbm = cbm  # cbm should be absolute value from DFT calculations not ralative values as compared to vbm, Fermi level ...
         self.band_gap = cbm - vbm
 
-        if DOS_info == 'DOSCAR':
+        if DOS_info == 'DOSCAR_mode':
             print 'Use real DOS from bulk supercell'
             print 'Read DOSCAR & filename = ' + str(additional_info)
             self.doscar_name = str(additional_info)
@@ -198,7 +198,7 @@ class Make_defective_model:
         print '==============print info=============='
 
 class calculate_Fermi_level:
-    def __init__(self, temperature, model):
+    def __init__(self, model, temperature):
         self.temperature = temperature
         self.defect_info = model.defect_info #### [class, chemical_potential, create_anil_info, [charge_state1, diff_energy1], [charge_state2, diff_energy2]...]
         self.class_num = model.class_num
@@ -209,6 +209,13 @@ class calculate_Fermi_level:
         self.bulk_energy = model.bulk_energy
         self.bulk_totalDOS = model.bulk_totalDOS
         self.detail_info_defect = []
+        for i in range(self.class_num):
+            self.detail_info_defect.append([])
+            num_charge = len(self.defect_info[i])-3
+            #print num_charge
+            for j in range(num_charge):
+                self.detail_info_defect[i].append([])
+
 
     def set_additional_info(self, defect_class_name, charge_state, N_site, spin_degeneracy, struc_degeneracy):
         find_class, find_charge = False, False
@@ -230,24 +237,44 @@ class calculate_Fermi_level:
         if not find_charge:
             print 'ERROR: Your input for defect charge state is wrong; please check again ' + str(charge_state)
             return 0
-
-
-
-        temp_info = [N_site, spin_degeneracy, struc_degeneracy]
+        #print self.detail_info_defect
+        #[N_site, spin_degeneracy, struc_degenery]
         ######## info ########
         # N_site = 
         # spin_degeneracy = 
         # struc_degeneracy = 
         ######################
+        self.detail_info_defect[index_class][index_charge].append(N_site)
+        self.detail_info_defect[index_class][index_charge].append(spin_degeneracy)
+        self.detail_info_defect[index_class][index_charge].append(struc_degeneracy)
+        return 0
+
+    def check_everything_okay(self):
+        for i in range(self.class_num):
+            for j in range(len(self.defect_info[i])-3):
+                if len(self.detail_info_defect[i][j]) == 0:
+                    print "ERROR: some part of detail defect info is empty"
+                    print self.defect_info[i][0]
+                    return 0
+        return 0
+
+    def calculate_defect_concentration(self):
 
 
+        return 0
+
+    def calculate_free_carriers(self):
+
+        return 0
+
+    def main_routine(self, total_steps, delta):
 
         return 0
 
 
 if __name__ == "__main__": 
     ZnO = Make_defective_model()
-    ZnO.set_bulk_property(-286.79394896, 0.7586, 2.5677, 'DOSCAR', 'DOSCAR_ZnO_PBEU')
+    ZnO.set_bulk_property(-286.79394896, 0.7586, 2.5677, 'DOSCAR_mode', 'DOSCAR_ZnO_PBEU')
     chemical_potential_ZnO_Orich = [-4.054142985, -4.92616616] # Zn O
     chemical_potential_ZnO_Znrich = [-0.334123815, -8.64618533] # Zn O
     create_anhil_oxygen_vacancy = [0.0, -1.0]
@@ -273,5 +300,12 @@ if __name__ == "__main__":
     #ZnO.set_defect_detail('oxygen_vacancy', -20.0, -2)
     #ZnO.print_info()
 
-    cal_ZnO = calculate_Fermi_level(300, ZnO)
+    cal_ZnO = calculate_Fermi_level(ZnO, 300)
     cal_ZnO.set_additional_info('oxygen_vacancy', 0,  1e20, 2, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy', 2,  1e20, 2, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy', -2,  1e20, 3, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy', 1,  1e20, 2, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy', -1,  1e20, 5, 1)
+    print cal_ZnO.defect_info
+    print cal_ZnO.detail_info_defect
+    cal_ZnO.check_everything_okay()
