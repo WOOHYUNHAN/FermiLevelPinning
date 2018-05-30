@@ -198,9 +198,9 @@ class Make_defective_model:
         print '==============print info=============='
 
 class calculate_Fermi_level:
-    def __init__(temperature, model):
+    def __init__(self, temperature, model):
         self.temperature = temperature
-        self.defect_info = model.defect_info
+        self.defect_info = model.defect_info #### [class, chemical_potential, create_anil_info, [charge_state1, diff_energy1], [charge_state2, diff_energy2]...]
         self.class_num = model.class_num
         self.E_bulk = model.E_bulk
         self.vbm = model.vbm 
@@ -208,9 +208,39 @@ class calculate_Fermi_level:
         self.band_gap = model.band_gap
         self.bulk_energy = model.bulk_energy
         self.bulk_totalDOS = model.bulk_totalDOS
+        self.detail_info_defect = []
 
-    def set_additional_info(self, N_site, degeneracy):
+    def set_additional_info(self, defect_class_name, charge_state, N_site, spin_degeneracy, struc_degeneracy):
+        find_class, find_charge = False, False
+
+        for i in range(len(self.defect_info)):
+            if defect_class_name == self.defect_info[i][0]:
+                find_class = True
+                index_class = i
         
+        if not find_class:
+            print 'ERROR: Your input for defect class is wrong; please check again ' + str(defect_class_name)
+            return 0
+
+        for i in range(len(self.defect_info[index_class])-3):
+            if charge_state == self.defect_info[index_class][i+3][0]:
+                find_charge = True
+                index_charge = i
+
+        if not find_charge:
+            print 'ERROR: Your input for defect charge state is wrong; please check again ' + str(charge_state)
+            return 0
+
+
+
+        temp_info = [N_site, spin_degeneracy, struc_degeneracy]
+        ######## info ########
+        # N_site = 
+        # spin_degeneracy = 
+        # struc_degeneracy = 
+        ######################
+
+
 
         return 0
 
@@ -237,8 +267,11 @@ if __name__ == "__main__":
     ZnO.set_defect_detail('zinc_vacancy', -280.32489306, 1)
     ZnO.set_defect_detail('zinc_vacancy', -280.79925758, 2)
 
-    ZnO.draw_thermodynamic_charge_transition_level(0.2, 0.2, 400)
+    #ZnO.draw_thermodynamic_charge_transition_level(0.2, 0.2, 400)
     #print ZnO.class_num
 
     #ZnO.set_defect_detail('oxygen_vacancy', -20.0, -2)
-    ZnO.print_info()
+    #ZnO.print_info()
+
+    cal_ZnO = calculate_Fermi_level(300, ZnO)
+    cal_ZnO.set_additional_info('oxygen_vacancy', 0,  1e20, 2, 1)
