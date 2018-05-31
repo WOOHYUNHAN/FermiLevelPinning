@@ -83,7 +83,6 @@ class Make_defective_model:
         return 0
 
     def clear_defect_class(self):
-
         return 0
 
     def set_defect_detail(self, defect_name, E_defect, charge_state, correct=0.0):
@@ -102,8 +101,8 @@ class Make_defective_model:
             temp_name = ''
             for i in range(len(self.defect_info)):
                 temp_name += str(self.defect_info[i][0]) + '; '
-            print 'You have defect classes as shown below; total number = ' + str(len(self.defect_info))
-            print temp_name
+            #print 'You have defect classes as shown below; total number = ' + str(len(self.defect_info))
+            #print temp_name
 
         find_class = False
         for i in range(len(self.defect_info)):
@@ -145,7 +144,7 @@ class Make_defective_model:
 
         
 
-    def draw_thermodynamic_charge_transition_level(self, min_E_from_VBM, max_E_from_CBM, Estep):
+    def draw_thermodynamic_charge_transition_level(self, min_E_from_VBM=0.2, max_E_from_CBM=0.2, Estep=400):
         energy_step = np.array([-1*min_E_from_VBM + self.vbm + (self.cbm - self.vbm + max_E_from_CBM + min_E_from_VBM) * i / float(Estep) for i in range(Estep)])
         #print len(energy_step)
 
@@ -171,7 +170,7 @@ class Make_defective_model:
         for i in range(self.class_num):
             ax1.plot(energy_step, min_energy[i], '-', color=color[i], label=r''+str(name[i])+'')
 
-        ax1.axvline(x=self.vbm) ; ax1.axvline(x=self.cbm) ; ax1.axhline(y=0.0)
+        ax1.axvline(x=self.vbm) ; ax1.axvline(x=self.cbm) ; ax1.axhline(y=0.0, color='black', linestyle='--')
 
         handles, labels = ax1.get_legend_handles_labels()
         leg=ax1.legend(handles[::-1], labels[::-1], frameon=True ,loc='best',numpoints=1,handletextpad=0.5,borderpad=0.05, ncol=1, labelspacing=0.3, handlelength=2, prop={'size':10})
@@ -188,6 +187,7 @@ class Make_defective_model:
 
     def print_info(self):
         print '==============print info=============='
+        print 'volume, total energy = ' + str(self.bulk_vol) + ', ' + str(self.E_bulk) 
         print 'VBM, CBM, band_gap = ' + str(self.vbm) + ', ' + str(self.cbm) + ', ' + str(self.band_gap) + ', '
         print 'defect information'
         print 'defect class, chemical potential, create_anhil_info, charge state, diff energy'
@@ -259,8 +259,8 @@ class calculate_Fermi_level:
         for i in range(self.class_num):
             for j in range(len(self.defect_info[i])-3):
                 if len(self.detail_info_defect[i][j]) == 0:
-                    print "ERROR: some part of detail defect info is empty"
-                    print self.defect_info[i][0]
+                    print "ERROR: some part of detail defect info is empty ;" + str(self.defect_info[i][0])
+                    self.ready = False
                     return 0
         print 'Everything is okay; you are ready to calculate Fermi level'
         self.ready = True
@@ -323,8 +323,9 @@ class calculate_Fermi_level:
 
     def main_routine(self, initial_Ef, total_steps, delta, conv_criteria):
         self.check_everything_okay()
-        if self.ready:
+        if not self.ready:
             print "ERROR: please check set addition info function"
+            return 0
 
         Ef = initial_Ef
         step = 0
