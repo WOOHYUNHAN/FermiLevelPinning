@@ -16,13 +16,15 @@ class Make_defective_model:
     def __init__(self):
         self.defect_info = []
 
-    def set_bulk_property(self, Etotal, vbm, cbm, DOS_info, additional_info):
+    def set_bulk_property(self, vol, Etotal, vbm, cbm, DOS_info, additional_info):
         self.E_bulk = Etotal
         self.vbm = vbm # vbm should be absolute value from DFT calculations not ralative values as compared to vbm, Fermi level ...
         self.cbm = cbm  # cbm should be absolute value from DFT calculations not ralative values as compared to vbm, Fermi level ...
         self.band_gap = cbm - vbm
+        self.DOS_info = DOS_info
+        self.bulk_vol = vol
 
-        if DOS_info == 'DOSCAR_mode':
+        if self.DOS_info == 'DOSCAR_mode':
             print 'Use real DOS from bulk supercell'
             print 'Read DOSCAR & filename = ' + str(additional_info)
             self.doscar_name = str(additional_info)
@@ -54,7 +56,7 @@ class Make_defective_model:
 
         max_energy = np.max(energy) ; min_energy = np.min(energy) ; delta_energy = (max_energy - min_energy) / (grid - 1.0)
 
-        self.bulk_energy = energy
+        self.bulk_dos_energy = energy
         self.bulk_totalDOS = total_dos
 
         return 0
@@ -169,7 +171,7 @@ class Make_defective_model:
         for i in range(self.class_num):
             ax1.plot(energy_step, min_energy[i], '-', color=color[i], label=r''+str(name[i])+'')
 
-        ax1.axvline(x=self.vbm) ; ax1.axvline(x=self.cbm)
+        ax1.axvline(x=self.vbm) ; ax1.axvline(x=self.cbm) ; ax1.axhline(y=0.0)
 
         handles, labels = ax1.get_legend_handles_labels()
         leg=ax1.legend(handles[::-1], labels[::-1], frameon=True ,loc='best',numpoints=1,handletextpad=0.5,borderpad=0.05, ncol=1, labelspacing=0.3, handlelength=2, prop={'size':10})
@@ -178,7 +180,7 @@ class Make_defective_model:
         ax1.set_ylabel(r'Formation energy (eV)')
         ax1.set_xlim(self.vbm - min_E_from_VBM, self.cbm + max_E_from_CBM)
         #ax1.set_ylim(min_y-0.01,-5.0)
-        plt.savefig("chargetransitionlevel.png")
+        plt.savefig("charge_transition_level.png")
         plt.show()
 
         return 0
@@ -207,8 +209,10 @@ class calculate_Fermi_level:
         self.vbm = model.vbm 
         self.cbm = model.cbm
         self.band_gap = model.band_gap
-        self.bulk_energy = model.bulk_energy
+        self.bulk_dos_energy = model.bulk_dos_energy
         self.bulk_totalDOS = model.bulk_totalDOS
+        self.bulk_vol = model.bulk_vol
+        self.DOS_info = model.DOS_info
         self.detail_info_defect = []
         for i in range(self.class_num):
             self.detail_info_defect.append([])
@@ -286,27 +290,119 @@ class calculate_Fermi_level:
         N_site, spin_deg, struc_deg = self.detail_info_defect[defect_class][min_index]
         #print N_site, spin_deg, struc_deg
 
-        temp_part = np.exp(-1 * formation_energy / (self.boltzmann * self.temperature))
+        temp_part = np.exp(-1.0 * formation_energy / (self.boltzmann * self.temperature))
 
         concentration = N_site * spin_deg * struc_deg * temp_part
 
-        return concentration
+        return charge_state, concentration
 
-    def calculate_free_carriers(self):
+    def calculate_free_carriers(self, Ef):
+        if self.DOS_info == 'DOSCAR_mode':
+            ## READ DOSCAR
+            temp_hole = 0
+            temp_elec = 0
+            max_energy = np.max(self.bulk_dos_energy) ; min_energy = np.min(self.bulk_dos_energy)  ; ngrid = len(self.bulk_dos_energy) ; dE = (max_energy - min_energy) / (ngrid - 1.0)
+            DOS_ptype = np.zeros(ngrid) ; DOS_ntype = np.zeros(ngrid)
+            E_ptype = Ef - self.bulk_dos_energy ; E_ntype = self.bulk_dos_energy - Ef
+            for i in range(ngrid):
+                if self.bulk_dos_energy[i] > self.cbm:
+                    DOS_ntype[i] = self.bulk_totalDOS[i]
+                elif self.bulk_dos_energy[i] < self.vbm:
+                    DOS_ptype[i] = self.bulk_totalDOS[i]
+                else:
+                    pass 
+        else:
+            ## USE PARABOLIC DOS
+            pass
 
-        return 0
+        p_carrier = np.sum(DOS_ptype* dE / (np.exp(E_ptype/(self.boltzmann*self.temperature)) + 1.0)) / self.bulk_vol
+        n_carrier = np.sum(DOS_ntype* dE / (np.exp(E_ntype/(self.boltzmann*self.temperature)) + 1.0)) / self.bulk_vol
+        #print Ef, n_carrier, p_carrier
 
-    def main_routine(self, total_steps, delta):
+        return n_carrier, p_carrier
+
+    def main_routine(self, initial_Ef, total_steps, delta, conv_criteria):
         self.check_everything_okay()
         if self.ready:
             print "ERROR: please check set addition info function"
+
+        Ef = initial_Ef
+        step = 0
+        LRUN = True
+        class_info = []
+        temp_Ef = []
+        print 'step' + '\t' + 'Fermi level' + '\t' + 'Electron' + '\t' + 'Hole'
+
+        while step < total_steps and LRUN:
+            electron = 0
+            hole = 0
+            ################# Defect concentration #########################
+            for i in range(self.class_num):
+                charge, concent = self.calculate_defect_concentration(i, Ef)
+                class_info.append([charge, concent])
+                if charge > 0:
+                    ### donor ###
+                    hole += abs(charge) * concent
+                    #pass
+                elif charge < 0:
+                    ### acceptor ###
+                    electron += abs(charge) * concent
+                    #pass
+                else:
+                    ### netural ###
+                    pass
+
+            ################## free carriers from CB and VB ################
+            n_carrier, p_carrier = self.calculate_free_carriers(Ef)
+
+            electron += n_carrier
+            hole += p_carrier
+
+
+            ################## self-consistent loop ########################
+            templine = str(step) + '\t' + str(Ef) + '\t' + str(electron) + '\t' + str(hole)  + '\t' + str(n_carrier)  + '\t' + str(p_carrier)
+            for i in range(self.class_num):
+                charge, concent = self.calculate_defect_concentration(i, Ef)
+                templine += '\t' + str(concent)
+            print templine
+
+            temp_Ef.append(float(Ef))
+
+            if abs(electron - hole) < conv_criteria:
+                print "Converge"
+                LRUN = False
+            else:
+                if electron > hole:
+                    ### decrase Ef
+                    Ef -= delta
+                elif electron < hole:
+                    ### increase Ef
+                    Ef += delta
+                else:
+                    pass
+            step += 1
+        
+        gs = gridspec.GridSpec(1, 1, width_ratios=[1], height_ratios=[1])
+        ax1 = plt.subplot(gs[0,0])
+
+        temp_step = [i for i in range(len(temp_Ef))]
+
+        ax1.plot(temp_step, temp_Ef, '-', color='black')
+
+        ax1.set_xlabel(r'Step')
+        ax1.set_ylabel(r'Fermi level (eV)')
+        ax1.set_xlim(0, len(temp_Ef))
+        #ax1.set_ylim(min_y-0.01,-5.0)
+        plt.savefig("FermiLevelPinning.png")
+        #plt.show()
+
 
         return 0
 
 
 if __name__ == "__main__": 
     ZnO = Make_defective_model()
-    ZnO.set_bulk_property(-286.79394896, 0.7586, 2.5677, 'DOSCAR_mode', 'DOSCAR_ZnO_PBEU')
+    ZnO.set_bulk_property(715.19e-24,-286.79394896, 0.7586, 2.5677, 'DOSCAR_mode', 'DOSCAR_ZnO_PBEU')
     chemical_potential_ZnO_Orich = [-4.054142985, -4.92616616] # Zn O
     chemical_potential_ZnO_Znrich = [-0.334123815, -8.64618533] # Zn O
     create_anhil_oxygen_vacancy = [0.0, -1.0]
@@ -334,20 +430,21 @@ if __name__ == "__main__":
     #ZnO.print_info()
     ############################################################################
     cal_ZnO = calculate_Fermi_level(ZnO, 300)
-    cal_ZnO.set_additional_info('oxygen_vacancy',  0, 1e20, 1, 1)
-    cal_ZnO.set_additional_info('oxygen_vacancy', -1, 1e20, 2, 1)
-    cal_ZnO.set_additional_info('oxygen_vacancy', -2, 1e20, 1, 1)
-    cal_ZnO.set_additional_info('oxygen_vacancy',  1, 1e20, 2, 1)
-    cal_ZnO.set_additional_info('oxygen_vacancy',  2, 1e20, 1, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy',  0, 4.47434e22, 1, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy', -1, 4.47434e22, 2, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy', -2, 4.47434e22, 1, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy',  1, 4.47434e22, 2, 1)
+    cal_ZnO.set_additional_info('oxygen_vacancy',  2, 4.47434e22, 1, 1)
 
-    cal_ZnO.set_additional_info('zinc_vacancy',  0, 1e20, 1, 1)
-    cal_ZnO.set_additional_info('zinc_vacancy', -1, 1e20, 2, 1)
-    cal_ZnO.set_additional_info('zinc_vacancy', -2, 1e20, 1, 1)
-    cal_ZnO.set_additional_info('zinc_vacancy',  1, 1e20, 2, 1)
-    cal_ZnO.set_additional_info('zinc_vacancy',  2, 1e20, 1, 1)
+    cal_ZnO.set_additional_info('zinc_vacancy',  0, 4.47434e22, 1, 1)
+    cal_ZnO.set_additional_info('zinc_vacancy', -1, 4.47434e22, 2, 1)
+    cal_ZnO.set_additional_info('zinc_vacancy', -2, 4.47434e22, 1, 1)
+    cal_ZnO.set_additional_info('zinc_vacancy',  1, 4.47434e22, 2, 1)
+    cal_ZnO.set_additional_info('zinc_vacancy',  2, 4.47434e22, 1, 1)
     #print cal_ZnO.defect_info
     #print cal_ZnO.detail_info_defect
-    cal_ZnO.check_everything_okay()
-
-    print cal_ZnO.calculate_defect_concentration(1, 2.2)
+    #cal_ZnO.check_everything_okay()
+    cal_ZnO.main_routine(3.0, 1000, 0.01, 1e-15)
+    #cal_ZnO.calculate_free_carriers(1.2)
+    #print cal_ZnO.calculate_defect_concentration(0, 2.5)
 
